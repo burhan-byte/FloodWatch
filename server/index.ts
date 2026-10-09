@@ -1,0 +1,44 @@
+import { randomBytes } from 'node:crypto';
+import path from 'node:path';
+import { createApp } from './app';
+import { openDb } from './db';
+import { startJobs } from './jobs';
+import { createStream } from './stream';
+
+const PORT = Number(process.env.PORT ?? 8080);
+const DB_PATH = process.env.DB_PATH ?? './data/floodwatch.db';
+const TRUST_PROXY_RAW = process.env.TRUST_PROXY;
+if (TRUST_PROXY_RAW && !/^\d+$/.test(TRUST_PROXY_RAW)) {
+  console.error(`TRUST_PROXY must be a non-negative integer (number of proxy hops), got "${TRUST_PROXY_RAW}".`);
+  process.exit(1);
+}
+const TRUST_PROXY = TRUST_PROXY_RAW ? Number(TRUST_PROXY_RAW) : undefined;
+
+if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
+  console.warn(
+    'TRUST_PROXY is not set; behind nginx, rate limits and flags will see the proxy IP. Set TRUST_PROXY=1.'
+  );
+}
+
+let ipSalt = process.env.IP_SALT;
+if (!ipSalt && process.env.NODE_ENV === 'production') {
+  console.error('IP_SALT must be set in production.');
+  process.exit(1);
+}
+if (!ipSalt) {
+  console.warn('IP_SALT is not set; using a random salt, so fake-case flags reset on restart.');
+  ipSalt = randomBytes(16).toString('hex');
+}
+
+const db = openDb(DB_PATH);
+const stream = createStream();
+const app = createApp({
+  db,
+  stream,
+  ipSalt,
+  trustProxy: TRUST_PROXY,
+  staticDir: path.resolve(import.meta.dirname, '../dist'),
+});
+startJobs(db, stream);
+
+app.listen(PORT, () => console.log(`FloodWatch server listening on http://localhost:${PORT}`));
