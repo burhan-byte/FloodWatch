@@ -70,7 +70,7 @@ open ──resolve (owner)──▶ resolved
 - Only one active claim at a time. Claiming a `claimed` case returns 409.
 - `resolve` accepts the owner token or the current claim token.
 - `release` requires the claim token.
-- Stale claims: `claimed` with `updated_at` older than 3 hours → back to `open`,
+- Stale claims: `claimed` with `claimed_at` older than 3 hours → back to `open`,
   claim fields cleared.
 
 ### Abuse controls (no login)
@@ -123,7 +123,7 @@ All JSON. Tokens are sent in the `X-Token` header.
 | POST | `/api/requests/:id/release` | claim | → `open` |
 | POST | `/api/requests/:id/resolve` | owner or claim | → `resolved` |
 | POST | `/api/requests/:id/flag` | — | Idempotent per IP |
-| GET | `/api/stream` | — | SSE; events `request.created`, `request.updated` carrying the public case |
+| GET | `/api/stream` | — | SSE; events `request.created`, `request.updated` (public case) and `request.removed` (`{ id }`, when hidden by flags) |
 
 Errors: `400` validation (field messages in Thai), `403` bad/missing token,
 `404` unknown/hidden, `409` invalid state transition, `429` rate limited.
@@ -131,7 +131,7 @@ Validation with `zod`, shared types between server and client.
 
 ## 5. Background jobs (every 5 minutes)
 
-1. Release stale claims (> 3h since `updated_at`), emit `request.updated`.
+1. Release stale claims (> 3h since `claimed_at`), emit `request.updated`.
 2. Retention (PDPA): set `phone = NULL` for cases resolved more than 30 days ago.
 
 ## 6. Frontend (mobile-first)
@@ -142,7 +142,8 @@ Validation with `zod`, shared types between server and client.
 - Case list under the map on mobile, beside it on desktop. Sorted by urgency, then
   distance when GPS is allowed.
 - Urgency order: `evacuate` with any vulnerable flag > `medical` > `evacuate` >
-  others; ties broken by oldest first.
+  others; ties broken by distance (when GPS is allowed), then oldest first. Within the
+  list, `open` cases come before `claimed`, then `resolved`.
 - Filters: need type, status, near me.
 - Footer: hotlines 1784 / 1669 / 1460.
 
