@@ -1,0 +1,6 @@
+{
+  "name": "ThaiFloodWatch - ระบบติดตามระดับน้ำและเตือนภัยน้ำท่วมเรียลไทม์",
+  "description": "ระบบเฝ้าระวังและเตือนภัยสถานการณ์น้ำท่วม แสดงระดับน้ำโทรมาตรแบบเรียลไทม์ แผนที่ความเสี่ยง และศูนย์ประสานงานช่วยเหลือฉุกเฉิน",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
