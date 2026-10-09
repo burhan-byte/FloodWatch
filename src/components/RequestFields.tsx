@@ -1,5 +1,69 @@
+import { useEffect, useState, type ReactNode } from 'react';
 import { NEEDS, type Need } from '../../shared/schema';
 import { NEED_ICON, NEED_LABEL } from '../lib/labels';
+
+export const inputClass =
+  'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-3 text-base text-white placeholder-slate-500';
+
+/** Accessibility attributes for an input rendered inside a `Field` with the same id */
+export function fieldProps(id: string, error?: string) {
+  return {
+    id,
+    'aria-invalid': !!error,
+    'aria-describedby': error ? `${id}-err` : undefined,
+  };
+}
+
+/**
+ * A labelled form field. With `group`, the label names a `role="group"` wrapper (for toggle groups)
+ * instead of pointing at a single input via `htmlFor`.
+ */
+export function Field({
+  id,
+  label,
+  error,
+  group,
+  children,
+}: {
+  id: string;
+  label: ReactNode;
+  error?: string;
+  group?: boolean;
+  children: ReactNode;
+}) {
+  const labelClass = 'block text-sm font-semibold text-slate-200';
+  const labelId = `${id}-label`;
+  return (
+    <div className="space-y-1.5">
+      {group ? (
+        <div id={labelId} className={labelClass}>
+          {label}
+        </div>
+      ) : (
+        <label htmlFor={id} className={labelClass}>
+          {label}
+        </label>
+      )}
+      {group ? (
+        <div
+          role="group"
+          aria-labelledby={labelId}
+          aria-describedby={error ? `${id}-err` : undefined}
+          className="space-y-2"
+        >
+          {children}
+        </div>
+      ) : (
+        children
+      )}
+      {error && (
+        <p id={`${id}-err`} className="text-xs text-red-300">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 const toggle = (active: boolean) =>
   `flex min-h-12 items-center gap-2 rounded-xl border-2 px-3 py-2 text-left text-sm font-medium transition-colors ${
@@ -58,25 +122,53 @@ export function VulnerableToggles({ value, onChange }: { value: Vulnerable; onCh
   );
 }
 
-export function PeopleCounter({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const set = (n: number) => onChange(Math.min(500, Math.max(1, n)));
+const MIN_PEOPLE = 1;
+const MAX_PEOPLE = 500;
+const clampPeople = (n: number) => Math.min(MAX_PEOPLE, Math.max(MIN_PEOPLE, Math.round(n)));
+
+export function PeopleCounter({
+  value,
+  onChange,
+  inputProps,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  inputProps?: ReturnType<typeof fieldProps>;
+}) {
+  // Local text so the field can be cleared and retyped; it is clamped on blur and on +/−
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+
+  const commit = (n: number) => {
+    const v = clampPeople(Number.isFinite(n) ? n : MIN_PEOPLE);
+    setText(String(v));
+    onChange(v);
+  };
+  const type = (raw: string) => {
+    setText(raw);
+    const n = Number(raw);
+    if (raw.trim() !== '' && Number.isInteger(n) && n >= MIN_PEOPLE && n <= MAX_PEOPLE) onChange(n);
+  };
+
   const btn = 'h-12 w-12 rounded-xl border border-slate-700 bg-slate-900 text-xl font-bold text-white';
   return (
     <div className="flex items-center gap-2">
-      <button type="button" className={btn} onClick={() => set(value - 1)} aria-label="ลดจำนวน">
+      <button type="button" className={btn} onClick={() => commit(value - 1)} aria-label="ลดจำนวน">
         −
       </button>
       <input
         type="number"
         inputMode="numeric"
-        min={1}
-        max={500}
-        value={value}
-        onChange={(e) => set(Number(e.target.value) || 1)}
+        min={MIN_PEOPLE}
+        max={MAX_PEOPLE}
+        value={text}
+        onChange={(e) => type(e.target.value)}
+        onBlur={() => commit(Number(text) || MIN_PEOPLE)}
         className="h-12 w-20 rounded-xl border border-slate-700 bg-slate-950 text-center text-lg font-bold text-white"
         aria-label="จำนวนคน"
+        {...inputProps}
       />
-      <button type="button" className={btn} onClick={() => set(value + 1)} aria-label="เพิ่มจำนวน">
+      <button type="button" className={btn} onClick={() => commit(value + 1)} aria-label="เพิ่มจำนวน">
         +
       </button>
       <span className="text-sm text-slate-400">คน</span>

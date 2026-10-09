@@ -1,8 +1,17 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'wouter';
 import type { Need } from '../../shared/schema';
 import { LocationPicker } from '../components/LocationPicker';
-import { NeedToggles, PeopleCounter, VulnerableToggles, type Vulnerable } from '../components/RequestFields';
+import {
+  Field,
+  NeedToggles,
+  PeopleCounter,
+  VulnerableToggles,
+  fieldProps,
+  inputClass as input,
+  type Vulnerable,
+} from '../components/RequestFields';
+import { SecretLink } from '../components/SecretLink';
 import { ApiError, api } from '../lib/api';
 import { saveToken } from '../lib/caseTokens';
 import type { LatLng } from '../lib/geo';
@@ -48,18 +57,6 @@ function storeDraft(draft: Draft | null) {
     // ignore
   }
 }
-
-function Field({ label, error, children }: { label: ReactNode; error?: string; children: ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <div className="text-sm font-semibold text-slate-200">{label}</div>
-      {children}
-      {error && <p className="text-xs text-red-300">{error}</p>}
-    </div>
-  );
-}
-
-const input = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-3 text-base text-white placeholder-slate-500';
 
 export default function NewRequest() {
   const [d, setD] = useState<Draft>(loadDraft);
@@ -113,31 +110,45 @@ export default function NewRequest() {
     <form onSubmit={submit} className="mx-auto max-w-xl space-y-5" noValidate>
       <h1 className="text-xl font-bold text-white">🆘 ขอความช่วยเหลือ</h1>
 
-      <Field label={<>ตำแหน่งของคุณ <span className="text-red-400">*</span></>} error={fields.lat ?? fields.lng}>
+      <Field id="location" group label={<>ตำแหน่งของคุณ <span className="text-red-400">*</span></>} error={fields.lat ?? fields.lng}>
         <LocationPicker value={d.location} onChange={(p) => set('location', p)} />
         <input
+          {...fieldProps('locationText', fields.locationText)}
+          aria-label="จุดสังเกต"
           className={input}
           placeholder="จุดสังเกต เช่น ซอย 5 หลังวัด บ้านสีฟ้า"
           value={d.locationText}
           onChange={(e) => set('locationText', e.target.value)}
           maxLength={200}
         />
+        {fields.locationText && (
+          <p id="locationText-err" className="text-xs text-red-300">
+            {fields.locationText}
+          </p>
+        )}
       </Field>
 
-      <Field label={<>ต้องการความช่วยเหลืออะไร <span className="text-red-400">*</span></>} error={fields.needs}>
+      <Field id="needs" group label={<>ต้องการความช่วยเหลืออะไร <span className="text-red-400">*</span></>} error={fields.needs}>
         <NeedToggles value={d.needs} onChange={(v) => set('needs', v)} />
       </Field>
 
-      <Field label="มีกี่คน" error={fields.peopleCount}>
-        <PeopleCounter value={d.peopleCount} onChange={(v) => set('peopleCount', v)} />
+      <Field id="peopleCount" label="มีกี่คน" error={fields.peopleCount}>
+        <PeopleCounter
+          value={d.peopleCount}
+          onChange={(v) => set('peopleCount', v)}
+          inputProps={fieldProps('peopleCount', fields.peopleCount)}
+        />
       </Field>
 
-      <Field label="มีกลุ่มเปราะบางไหม (ถ้ามี)">
+      <Field id="vulnerable" group label="มีกลุ่มเปราะบางไหม (ถ้ามี)">
         <VulnerableToggles value={d.vulnerable} onChange={(v) => set('vulnerable', v)} />
       </Field>
 
-      <Field label={<>เบอร์โทรติดต่อ <span className="text-red-400">*</span></>} error={fields.phone}>
+      <Field id="phone" label={<>เบอร์โทรติดต่อ <span className="text-red-400">*</span></>} error={fields.phone}>
         <input
+          {...fieldProps('phone', fields.phone)}
+          required
+          aria-required="true"
           className={input}
           type="tel"
           inputMode="tel"
@@ -149,12 +160,13 @@ export default function NewRequest() {
         <p className="text-xs text-slate-500">เบอร์จะแสดงเมื่ออาสากด "แสดงเบอร์" เท่านั้น</p>
       </Field>
 
-      <Field label="ชื่อ (ไม่บังคับ)" error={fields.contactName}>
-        <input className={input} value={d.contactName} onChange={(e) => set('contactName', e.target.value)} maxLength={100} />
+      <Field id="contactName" label="ชื่อ (ไม่บังคับ)" error={fields.contactName}>
+        <input {...fieldProps('contactName', fields.contactName)} className={input} value={d.contactName} onChange={(e) => set('contactName', e.target.value)} maxLength={100} />
       </Field>
 
-      <Field label="รายละเอียดเพิ่มเติม (ไม่บังคับ)" error={fields.details}>
+      <Field id="details" label="รายละเอียดเพิ่มเติม (ไม่บังคับ)" error={fields.details}>
         <textarea
+          {...fieldProps('details', fields.details)}
           className={`${input} min-h-24`}
           placeholder="เช่น น้ำสูงระดับเอว มีผู้ป่วยต้องใช้ออกซิเจน"
           value={d.details}
@@ -182,13 +194,6 @@ export default function NewRequest() {
 
 function Created({ id, ownerToken }: { id: string; ownerToken: string }) {
   const link = `${window.location.origin}/r/${id}?t=${ownerToken}`;
-  const [copied, setCopied] = useState(false);
-  const copy = () =>
-    navigator.clipboard
-      ?.writeText(link)
-      .then(() => setCopied(true))
-      .catch(() => undefined);
-  const share = () => navigator.share?.({ title: 'ลิงก์จัดการคำขอความช่วยเหลือ', url: link }).catch(() => undefined);
 
   return (
     <div className="mx-auto max-w-xl space-y-4 text-center">
@@ -198,21 +203,12 @@ function Created({ id, ownerToken }: { id: string; ownerToken: string }) {
         ถ้าเป็นกรณีอันตรายถึงชีวิต โทร <a href="tel:1669" className="font-bold underline">1669</a> หรือ{' '}
         <a href="tel:1784" className="font-bold underline">1784</a> ด้วย
       </p>
-      <div className="space-y-2 rounded-2xl border border-amber-600/60 bg-amber-950/40 p-4 text-left">
-        <p className="text-sm font-bold text-amber-200">🔑 เก็บลิงก์นี้ไว้ (แคปหน้าจอได้)</p>
-        <p className="text-xs text-amber-100/80">ใช้ลิงก์นี้เพื่อแก้ไขข้อมูล หรือแจ้งว่าได้รับความช่วยเหลือแล้ว ห้ามส่งให้คนอื่น</p>
-        <p className="break-all rounded-lg bg-slate-950 p-2 font-mono text-xs text-slate-200">{link}</p>
-        <div className="flex gap-2">
-          <button type="button" onClick={copy} className="flex-1 rounded-lg bg-slate-800 py-2 text-sm font-semibold text-white">
-            {copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}
-          </button>
-          {'share' in navigator && (
-            <button type="button" onClick={share} className="flex-1 rounded-lg bg-slate-800 py-2 text-sm font-semibold text-white">
-              แชร์
-            </button>
-          )}
-        </div>
-      </div>
+      <SecretLink
+        link={link}
+        title="🔑 เก็บลิงก์นี้ไว้ (แคปหน้าจอได้)"
+        note="ใช้ลิงก์นี้เพื่อแก้ไขข้อมูล หรือแจ้งว่าได้รับความช่วยเหลือแล้ว ห้ามส่งให้คนอื่น"
+        shareTitle="ลิงก์จัดการคำขอความช่วยเหลือ"
+      />
       <Link href={`/r/${id}`} className="block rounded-xl bg-cyan-600 py-3 font-bold text-white">
         ดูเคสของฉัน
       </Link>

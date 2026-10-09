@@ -15,6 +15,7 @@ export default function Home() {
   const [showResolved, setShowResolved] = useState(false);
   const [origin, setOrigin] = useState<LatLng | null>(null);
   const [nearMe, setNearMe] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
   const statuses: Status[] = showResolved ? ['open', 'claimed', 'resolved'] : ['open', 'claimed'];
@@ -34,13 +35,20 @@ export default function Home() {
   const toggleNearMe = () => {
     if (nearMe) return setNearMe(false);
     if (!navigator.geolocation) return setGpsError('อุปกรณ์นี้หาตำแหน่งไม่ได้');
+    setLocating(true);
+    setGpsError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setNearMe(true);
-        setGpsError(null);
+        setLocating(false);
       },
-      () => setGpsError('ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง'),
+      (err) => {
+        setLocating(false);
+        setGpsError(
+          err.code === err.PERMISSION_DENIED ? 'ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง' : 'หาตำแหน่งไม่ได้ ลองใหม่อีกครั้ง'
+        );
+      },
       { enableHighAccuracy: true, timeout: 10_000 }
     );
   };
@@ -77,22 +85,32 @@ export default function Home() {
       </div>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-        <button type="button" className={chip(needFilter === null)} onClick={() => setNeedFilter(null)}>
+        <button type="button" aria-pressed={needFilter === null} className={chip(needFilter === null)} onClick={() => setNeedFilter(null)}>
           ทั้งหมด
         </button>
         {NEEDS.map((n) => (
-          <button key={n} type="button" className={chip(needFilter === n)} onClick={() => setNeedFilter(needFilter === n ? null : n)}>
+          <button
+            key={n}
+            type="button"
+            aria-pressed={needFilter === n}
+            className={chip(needFilter === n)}
+            onClick={() => setNeedFilter(needFilter === n ? null : n)}
+          >
             {NEED_ICON[n]} {NEED_LABEL[n]}
           </button>
         ))}
-        <button type="button" className={chip(nearMe)} onClick={toggleNearMe}>
-          📍 ใกล้ฉัน ({NEAR_ME_KM} กม.)
+        <button type="button" aria-pressed={nearMe} disabled={locating} className={chip(nearMe)} onClick={toggleNearMe}>
+          📍 {locating ? 'กำลังหาตำแหน่ง...' : `ใกล้ฉัน (${NEAR_ME_KM} กม.)`}
         </button>
-        <button type="button" className={chip(showResolved)} onClick={() => setShowResolved((v) => !v)}>
+        <button type="button" aria-pressed={showResolved} className={chip(showResolved)} onClick={() => setShowResolved((v) => !v)}>
           ✅ แสดงเคสที่ช่วยแล้ว
         </button>
       </div>
-      {gpsError && <p className="text-xs text-amber-300">{gpsError}</p>}
+      {gpsError && (
+        <p role="status" className="text-xs text-amber-300">
+          {gpsError}
+        </p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <HelpMap cases={visible} className="h-[55vh] min-h-[320px] lg:h-[640px]" />

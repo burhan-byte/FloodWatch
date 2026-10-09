@@ -10,19 +10,32 @@ export class ApiError extends Error {
   }
 }
 
+const CONNECTION_ERROR = 'เชื่อมต่อไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่';
+const TIMEOUT_MS = 20_000;
+
 async function call<T>(method: string, path: string, body?: unknown, token?: string): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers['X-Token'] = token;
 
+  // A slow or stalled connection (common on flaky mobile data) becomes the same connection error
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    res = await fetch(`/api${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
+    });
   } catch {
-    throw new ApiError(0, 'เชื่อมต่อไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+    throw new ApiError(0, CONNECTION_ERROR);
   }
   if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch(() => {
+    if (signal.aborted) throw new ApiError(0, CONNECTION_ERROR);
+    return {};
+  });
   if (!res.ok) throw new ApiError(res.status, data.error ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่', data.fields);
   return data as T;
 }
@@ -33,7 +46,8 @@ export const api = {
   create: (input: CreateRequestInput) => call<{ id: string; ownerToken: string }>('POST', '/requests', input),
   update: (id: string, patch: Partial<UpdateRequest>, token: string) =>
     call<PublicCase>('PATCH', `/requests/${id}`, patch, token),
-  revealPhone: (id: string) => call<{ phone: string | null }>('POST', `/requests/${id}/phone`),
+  revealPhone: (id: string, token?: string) =>
+    call<{ phone: string | null }>('POST', `/requests/${id}/phone`, undefined, token),
   claim: (id: string, name: string) => call<{ claimToken: string }>('POST', `/requests/${id}/claim`, { name }),
   release: (id: string, token: string) => call<PublicCase>('POST', `/requests/${id}/release`, undefined, token),
   resolve: (id: string, token: string) => call<PublicCase>('POST', `/requests/${id}/resolve`, undefined, token),

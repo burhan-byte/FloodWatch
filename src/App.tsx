@@ -10,7 +10,7 @@ export default function App() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/new" component={NewRequest} />
-        <Route path="/r/:id" component={CaseDetail} />
+        <Route path="/r/:id">{(p) => <CaseDetail key={p.id} />}</Route>
         <Route>
           <p className="text-slate-400">ไม่พบหน้านี้</p>
         </Route>

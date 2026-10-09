@@ -32,7 +32,6 @@ export function useCases(statuses: Status[]) {
       });
     };
 
-    load();
     const es = new EventSource('/api/stream');
     es.addEventListener('request.created', upsert);
     es.addEventListener('request.updated', upsert);
@@ -40,9 +39,19 @@ export function useCases(statuses: Status[]) {
       const { id } = JSON.parse(e.data) as { id: string };
       setCases((prev) => prev.filter((p) => p.id !== id));
     });
-    es.onerror = () => setOnline(false);
-    // Reload on (re)connect so events missed while offline are not lost
+    // The list is loaded on (re)connect so events missed while offline are not lost.
+    // If the stream fails before it ever opens (e.g. a proxy blocks SSE), load once anyway.
+    let opened = false;
+    let fellBack = false;
+    es.onerror = () => {
+      setOnline(false);
+      if (!opened && !fellBack) {
+        fellBack = true;
+        load();
+      }
+    };
     es.onopen = () => {
+      opened = true;
       setOnline(true);
       load();
     };
