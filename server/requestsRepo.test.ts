@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createRequestSchema } from '../shared/schema';
 import { openDb, type DB } from './db';
-import { createRequest, getRow, getVisible, isOwner, listPublic } from './requestsRepo';
+import {
+  claimRequest,
+  createRequest,
+  getRow,
+  getVisible,
+  isClaimer,
+  isOwner,
+  listPublic,
+  releaseClaim,
+  resolveRequest,
+  updateRequest,
+} from './requestsRepo';
 
 const input = (over: Record<string, unknown> = {}) =>
   createRequestSchema.parse({
@@ -55,5 +66,44 @@ describe('create and read', () => {
     expect(listPublic(db, ['resolved'], now)).toHaveLength(0);
     db.prepare('UPDATE help_requests SET resolved_at = ? WHERE id = ?').run('2026-10-09T01:00:00.000Z', id);
     expect(listPublic(db, ['resolved'], now)).toHaveLength(1);
+  });
+});
+
+describe('transitions', () => {
+  it('updates only the given fields', () => {
+    const { id } = createRequest(db, input({ details: 'เดิม' }));
+    updateRequest(db, id, { details: 'ใหม่', needs: ['food'] });
+    const c = listPublic(db, ['open'])[0];
+    expect(c.details).toBe('ใหม่');
+    expect(c.needs).toEqual(['food']);
+    expect(c.hasElderly).toBe(true);
+  });
+
+  it('claims an open case once', () => {
+    const { id } = createRequest(db, input());
+    const token = claimRequest(db, id, 'ทีมเรือ')!;
+    const row = getRow(db, id)!;
+    expect(row.status).toBe('claimed');
+    expect(row.claimed_by).toBe('ทีมเรือ');
+    expect(isClaimer(row, token)).toBe(true);
+    expect(claimRequest(db, id, 'อีกทีม')).toBeNull();
+  });
+
+  it('releases a claim back to open', () => {
+    const { id } = createRequest(db, input());
+    claimRequest(db, id, 'ทีมเรือ');
+    expect(releaseClaim(db, id)).toBe(true);
+    const row = getRow(db, id)!;
+    expect(row.status).toBe('open');
+    expect(row.claimed_by).toBeNull();
+    expect(row.claim_token_hash).toBeNull();
+    expect(releaseClaim(db, id)).toBe(false);
+  });
+
+  it('resolves once', () => {
+    const { id } = createRequest(db, input());
+    expect(resolveRequest(db, id)).toBe(true);
+    expect(getRow(db, id)!.resolved_at).not.toBeNull();
+    expect(resolveRequest(db, id)).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import type { CreateRequest, PublicCase, Status } from '../shared/schema';
+import type { CreateRequest, PublicCase, Status, UpdateRequest } from '../shared/schema';
 import type { DB } from './db';
 import { newId, newToken, sha256, tokenMatches } from './tokens';
 
@@ -104,4 +104,68 @@ export function listPublic(db: DB, statuses: Status[], now = new Date()): Public
     )
     .all(...statuses, resolvedSince) as Row[];
   return rows.map(toPublic);
+}
+
+const UPDATE_COLUMNS: Record<keyof UpdateRequest, string> = {
+  locationText: 'location_text',
+  needs: 'needs',
+  peopleCount: 'people_count',
+  hasElderly: 'has_elderly',
+  hasChildren: 'has_children',
+  hasBedridden: 'has_bedridden',
+  contactName: 'contact_name',
+  phone: 'phone',
+  details: 'details',
+};
+
+function toDbValue(value: unknown): unknown {
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  return value;
+}
+
+export function updateRequest(db: DB, id: string, patch: UpdateRequest, now = new Date()): void {
+  const keys = (Object.keys(patch) as (keyof UpdateRequest)[]).filter((k) => patch[k] !== undefined);
+  const sets = keys.map((k) => `${UPDATE_COLUMNS[k]} = ?`);
+  db.prepare(`UPDATE help_requests SET ${[...sets, 'updated_at = ?'].join(', ')} WHERE id = ?`).run(
+    ...keys.map((k) => toDbValue(patch[k])),
+    now.toISOString(),
+    id
+  );
+}
+
+/** Returns the claim token, or null when the case is not open. */
+export function claimRequest(db: DB, id: string, name: string, now = new Date()): string | null {
+  const claimToken = newToken();
+  const ts = now.toISOString();
+  const { changes } = db
+    .prepare(
+      `UPDATE help_requests
+       SET status = 'claimed', claimed_by = ?, claimed_at = ?, claim_token_hash = ?, updated_at = ?
+       WHERE id = ? AND status = 'open' AND hidden = 0`
+    )
+    .run(name, ts, sha256(claimToken), ts, id);
+  return changes === 1 ? claimToken : null;
+}
+
+export function releaseClaim(db: DB, id: string, now = new Date()): boolean {
+  const { changes } = db
+    .prepare(
+      `UPDATE help_requests
+       SET status = 'open', claimed_by = NULL, claimed_at = NULL, claim_token_hash = NULL, updated_at = ?
+       WHERE id = ? AND status = 'claimed'`
+    )
+    .run(now.toISOString(), id);
+  return changes === 1;
+}
+
+export function resolveRequest(db: DB, id: string, now = new Date()): boolean {
+  const ts = now.toISOString();
+  const { changes } = db
+    .prepare(
+      `UPDATE help_requests SET status = 'resolved', resolved_at = ?, updated_at = ?
+       WHERE id = ? AND status != 'resolved'`
+    )
+    .run(ts, ts, id);
+  return changes === 1;
 }
