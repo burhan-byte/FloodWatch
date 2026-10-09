@@ -169,3 +169,46 @@ export function resolveRequest(db: DB, id: string, now = new Date()): boolean {
     .run(ts, ts, id);
   return changes === 1;
 }
+
+export const FLAG_HIDE_THRESHOLD = 3;
+export const STALE_CLAIM_MS = 3 * 60 * 60 * 1000;
+export const PHONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function addFlag(db: DB, id: string, ipHash: string, now = new Date()): { newlyHidden: boolean } {
+  return db.transaction(() => {
+    db.prepare('INSERT OR IGNORE INTO flags (request_id, ip_hash, created_at) VALUES (?, ?, ?)').run(
+      id,
+      ipHash,
+      now.toISOString()
+    );
+    const { count } = db.prepare('SELECT COUNT(*) AS count FROM flags WHERE request_id = ?').get(id) as {
+      count: number;
+    };
+    if (count < FLAG_HIDE_THRESHOLD) return { newlyHidden: false };
+    const { changes } = db.prepare('UPDATE help_requests SET hidden = 1 WHERE id = ? AND hidden = 0').run(id);
+    return { newlyHidden: changes === 1 };
+  })();
+}
+
+/** Reopens claims nobody finished within STALE_CLAIM_MS. Returns the reopened ids. */
+export function releaseStaleClaims(db: DB, now = new Date()): string[] {
+  const cutoff = new Date(now.getTime() - STALE_CLAIM_MS).toISOString();
+  const ids = (
+    db.prepare(`SELECT id FROM help_requests WHERE status = 'claimed' AND claimed_at < ?`).all(cutoff) as {
+      id: string;
+    }[]
+  ).map((r) => r.id);
+  db.transaction(() => ids.forEach((id) => releaseClaim(db, id, now)))();
+  return ids;
+}
+
+/** PDPA: forget phone numbers of cases resolved more than PHONE_RETENTION_MS ago. */
+export function purgeOldPhones(db: DB, now = new Date()): number {
+  const cutoff = new Date(now.getTime() - PHONE_RETENTION_MS).toISOString();
+  return db
+    .prepare(
+      `UPDATE help_requests SET phone = NULL
+       WHERE status = 'resolved' AND resolved_at < ? AND phone IS NOT NULL`
+    )
+    .run(cutoff).changes;
+}

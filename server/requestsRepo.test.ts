@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createRequestSchema } from '../shared/schema';
 import { openDb, type DB } from './db';
 import {
+  addFlag,
   claimRequest,
   createRequest,
   getRow,
@@ -9,7 +10,9 @@ import {
   isClaimer,
   isOwner,
   listPublic,
+  purgeOldPhones,
   releaseClaim,
+  releaseStaleClaims,
   resolveRequest,
   updateRequest,
 } from './requestsRepo';
@@ -105,5 +108,45 @@ describe('transitions', () => {
     expect(resolveRequest(db, id)).toBe(true);
     expect(getRow(db, id)!.resolved_at).not.toBeNull();
     expect(resolveRequest(db, id)).toBe(false);
+  });
+});
+
+describe('flags', () => {
+  it('counts one flag per ip and hides at three', () => {
+    const { id } = createRequest(db, input());
+    expect(addFlag(db, id, 'ip-a')).toEqual({ newlyHidden: false });
+    expect(addFlag(db, id, 'ip-a')).toEqual({ newlyHidden: false });
+    expect(addFlag(db, id, 'ip-b')).toEqual({ newlyHidden: false });
+    expect(getVisible(db, id)).toBeDefined();
+    expect(addFlag(db, id, 'ip-c')).toEqual({ newlyHidden: true });
+    expect(getVisible(db, id)).toBeUndefined();
+    expect(addFlag(db, id, 'ip-d')).toEqual({ newlyHidden: false });
+  });
+});
+
+describe('maintenance', () => {
+  it('reopens claims older than 3 hours', () => {
+    const t0 = new Date('2026-10-09T00:00:00Z');
+    const { id: stale } = createRequest(db, input(), t0);
+    const { id: fresh } = createRequest(db, input(), t0);
+    claimRequest(db, stale, 'ทีม A', t0);
+    claimRequest(db, fresh, 'ทีม B', new Date('2026-10-09T02:00:00Z'));
+
+    const reopened = releaseStaleClaims(db, new Date('2026-10-09T03:30:00Z'));
+
+    expect(reopened).toEqual([stale]);
+    expect(getRow(db, stale)!.status).toBe('open');
+    expect(getRow(db, fresh)!.status).toBe('claimed');
+  });
+
+  it('removes phones of cases resolved more than 30 days ago', () => {
+    const { id: old } = createRequest(db, input());
+    const { id: recent } = createRequest(db, input());
+    resolveRequest(db, old, new Date('2026-09-01T00:00:00Z'));
+    resolveRequest(db, recent, new Date('2026-10-01T00:00:00Z'));
+
+    expect(purgeOldPhones(db, new Date('2026-10-09T00:00:00Z'))).toBe(1);
+    expect(getRow(db, old)!.phone).toBeNull();
+    expect(getRow(db, recent)!.phone).toBe('0812345678');
   });
 });
