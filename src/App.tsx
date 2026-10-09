@@ -35,6 +35,8 @@ import {
   Info,
   Radio,
 } from 'lucide-react';
+import floodSatelliteImg from './assets/images/flood_monitoring_satellite_1791518025544.jpg';
+import { computeCapacityPercent, deriveStationStatus } from './utils/stationStatus';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('overview');
@@ -44,7 +46,9 @@ export default function App() {
   const [shelters, setShelters] = useState(INITIAL_SHELTERS);
   const [citizenReports, setCitizenReports] = useState<CitizenReport[]>(INITIAL_CITIZEN_REPORTS);
 
-  const [selectedStation, setSelectedStation] = useState<GaugingStation | null>(null);
+  // Store only the id so the detail modal always reads the latest simulated values
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const selectedStation = stations.find((s) => s.id === selectedStationId) ?? null;
   const [selectedAlertZone, setSelectedAlertZone] = useState<FloodAlertZone | null>(null);
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -70,14 +74,9 @@ export default function App() {
           const newLevel = Math.max(1, Number((st.currentLevelM + delta).toFixed(2)));
           const flowDelta = Math.floor((Math.random() - 0.48) * 8);
           const newFlow = Math.max(50, st.flowRateM3s + flowDelta);
-          const newCap = Number(((newLevel / st.bankLevelM) * 100).toFixed(1));
+          const newCap = computeCapacityPercent(newLevel, st.riverBedLevelM, st.bankLevelM);
 
-          let newStatus = st.status;
-          if (newLevel >= st.bankLevelM) {
-            newStatus = 'critical';
-          } else if (newLevel >= st.warningLevelM) {
-            newStatus = 'warning';
-          }
+          const newStatus = deriveStationStatus(newLevel, st.warningLevelM, st.bankLevelM);
 
           return {
             ...st,
@@ -247,7 +246,7 @@ export default function App() {
                 alertZones={alertZones}
                 dams={dams}
                 shelters={shelters}
-                onSelectStation={(st) => setSelectedStation(st)}
+                onSelectStation={(st) => setSelectedStationId(st.id)}
                 onSelectAlertZone={(zone) => setSelectedAlertZone(zone)}
               />
             </div>
@@ -258,7 +257,7 @@ export default function App() {
               <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex flex-col">
                 <div className="relative h-56 sm:h-64 bg-slate-950 overflow-hidden">
                   <img
-                    src="/src/assets/images/flood_monitoring_satellite_1791518025544.jpg"
+                    src={floodSatelliteImg}
                     alt="ภาพถ่ายดาวเทียมตรวจวัดมวลน้ำท่วมลุ่มน้ำเจ้าพระยา"
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
@@ -348,7 +347,7 @@ export default function App() {
         {activeTab === 'stations' && (
           <TelemetryStationsTable
             stations={stations}
-            onSelectStation={(st) => setSelectedStation(st)}
+            onSelectStation={(st) => setSelectedStationId(st.id)}
           />
         )}
 
@@ -399,7 +398,7 @@ export default function App() {
       {selectedStation && (
         <StationDetailModal
           station={selectedStation}
-          onClose={() => setSelectedStation(null)}
+          onClose={() => setSelectedStationId(null)}
         />
       )}
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { EvacuationShelter, CitizenReport } from '../types/flood';
 import { Home, Phone, Users, ThumbsUp, AlertCircle, PlusCircle, CheckCircle2, MapPin, HeartHandshake } from 'lucide-react';
+import floodRescueImg from '../assets/images/flood_rescue_operations_1791518040619.jpg';
 
 interface ShelterAndHelpPanelProps {
   shelters: EvacuationShelter[];
@@ -61,7 +62,7 @@ export const ShelterAndHelpPanel: React.FC<ShelterAndHelpPanelProps> = ({
 
           <div className="lg:col-span-5 relative min-h-[220px] bg-slate-950 overflow-hidden">
             <img
-              src="/src/assets/images/flood_rescue_operations_1791518040619.jpg"
+              src={floodRescueImg}
               alt="ปฏิบัติการเรือกู้ภัยช่วยเหลือผู้ประสบอุทกภัย"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"

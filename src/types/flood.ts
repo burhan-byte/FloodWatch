@@ -7,12 +7,11 @@ export interface GaugingStation {
   riverName: string;
   province: string;
   basin: string;
-  x: number; // SVG coordinate percent (0-100)
-  y: number; // SVG coordinate percent (0-100)
   lat: number;
   lng: number;
   currentLevelM: number; // ระดับน้ำปัจจุบัน (ม.รทก.)
   bankLevelM: number;    // ระดับตลิ่ง (ม.รทก.)
+  riverBedLevelM: number; // ระดับท้องน้ำ (ม.รทก.)
   warningLevelM: number; // ระดับเตือนภัย (ม.รทก.)
   capacityPercent: number; // % เทียบความจุลำน้ำ
   flowRateM3s: number;   // อัตราการไหล (ลบ.ม./วินาที)
@@ -40,8 +39,8 @@ export interface FloodAlertZone {
   description: string;
   evacuationRecommended: boolean;
   roadPassable: boolean;
-  x: number;
-  y: number;
+  lat: number;
+  lng: number;
 }
 
 export interface DamStatus {
@@ -55,8 +54,8 @@ export interface DamStatus {
   inflowMcmDay: number;       // ปริมาณน้ำไหลเข้า (ล้าน ลบ.ม./วัน)
   outflowMcmDay: number;      // ปริมาณน้ำระบาย (ล้าน ลบ.ม./วัน)
   status: SeverityLevel;
-  x: number;
-  y: number;
+  lat: number;
+  lng: number;
 }
 
 export interface EvacuationShelter {

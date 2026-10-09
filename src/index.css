@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+/* Leaflet map labels (station codes, dam/shelter names) */
+.leaflet-tooltip.fw-map-label {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+  border-radius: 4px;
+  color: #f1f5f9;
+  font-family: 'Prompt', sans-serif;
+  font-size: 11px;
+  padding: 1px 5px;
+  box-shadow: none;
+}
+.leaflet-tooltip.fw-map-label::before {
+  display: none;
+}
+.leaflet-tooltip.fw-map-label-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
