@@ -119,4 +119,120 @@ describe('help request API', () => {
     expect(res.status).toBe(429);
     expect(res.body.error).toBe('ส่งคำขอบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่');
   });
+
+  it('counts IPv6 addresses in the same /56 as one flagger', async () => {
+    const { app } = setup();
+    const { id } = await create(app);
+    for (const ip of ['2001:db8:1:1::1', '2001:db8:1:1::2', '2001:db8:1:2::3']) {
+      await request(app).post(`/api/requests/${id}/flag`).set('X-Forwarded-For', ip).expect(204);
+    }
+    await request(app).get(`/api/requests/${id}`).expect(200);
+  });
+
+  it('rate limits claims per IP', async () => {
+    const { app } = setup(true);
+    const { id } = await create(app);
+    for (let i = 0; i < 10; i++) {
+      await request(app)
+        .post(`/api/requests/${id}/claim`)
+        .set('X-Forwarded-For', '10.2.2.2')
+        .send({ name: 'ทีม' });
+    }
+    await request(app)
+      .post(`/api/requests/${id}/claim`)
+      .set('X-Forwarded-For', '10.2.2.2')
+      .send({ name: 'ทีม' })
+      .expect(429);
+  });
+
+  it('withholds the phone of resolved cases unless a valid token is sent', async () => {
+    const { app } = setup();
+    const { id, ownerToken } = await create(app);
+    await request(app).post(`/api/requests/${id}/resolve`).set('X-Token', ownerToken).expect(200);
+    const res = await request(app).post(`/api/requests/${id}/phone`).expect(409);
+    expect(res.body).toEqual({ error: 'เคสนี้ปิดแล้ว' });
+    await request(app).post(`/api/requests/${id}/phone`).set('X-Token', 'wrong').expect(409);
+    const ok = await request(app).post(`/api/requests/${id}/phone`).set('X-Token', ownerToken).expect(200);
+    expect(ok.body).toEqual({ phone: '0812345678' });
+
+    const b = await create(app);
+    const claim = await request(app).post(`/api/requests/${b.id}/claim`).send({ name: 'ทีม' });
+    await request(app)
+      .post(`/api/requests/${b.id}/resolve`)
+      .set('X-Token', claim.body.claimToken)
+      .expect(200);
+    const ok2 = await request(app)
+      .post(`/api/requests/${b.id}/phone`)
+      .set('X-Token', claim.body.claimToken)
+      .expect(200);
+    expect(ok2.body).toEqual({ phone: '0812345678' });
+  });
+
+  it('rejects edits to resolved cases', async () => {
+    const { app } = setup();
+    const { id, ownerToken } = await create(app);
+    await request(app).post(`/api/requests/${id}/resolve`).set('X-Token', ownerToken).expect(200);
+    const res = await request(app)
+      .patch(`/api/requests/${id}`)
+      .set('X-Token', ownerToken)
+      .send({ details: 'x' })
+      .expect(409);
+    expect(res.body).toEqual({ error: 'เคสนี้ปิดแล้ว' });
+  });
+
+  it('never puts the phone in broadcasts or mutation responses', async () => {
+    const { app } = setup();
+    const spy = vi.spyOn(stream, 'broadcast');
+    const { id, ownerToken } = await create(app);
+    expect(JSON.stringify(spy.mock.calls)).not.toContain('0812345678');
+    const claim = await request(app).post(`/api/requests/${id}/claim`).send({ name: 'ทีม' }).expect(200);
+    expect(JSON.stringify(spy.mock.calls)).not.toContain('0812345678');
+    const patched = await request(app)
+      .patch(`/api/requests/${id}`)
+      .set('X-Token', ownerToken)
+      .send({ details: 'x' })
+      .expect(200);
+    const released = await request(app)
+      .post(`/api/requests/${id}/release`)
+      .set('X-Token', claim.body.claimToken)
+      .expect(200);
+    const resolved = await request(app)
+      .post(`/api/requests/${id}/resolve`)
+      .set('X-Token', ownerToken)
+      .expect(200);
+    expect(JSON.stringify(spy.mock.calls)).not.toContain('0812345678');
+    for (const body of [patched.body, released.body, resolved.body]) {
+      expect(JSON.stringify(body)).not.toContain('0812345678');
+    }
+  });
+
+  it('ignores status and hidden in PATCH bodies', async () => {
+    const { app } = setup();
+    const { id, ownerToken } = await create(app);
+    const res = await request(app)
+      .patch(`/api/requests/${id}`)
+      .set('X-Token', ownerToken)
+      .send({ status: 'resolved', hidden: 1, details: 'x' })
+      .expect(200);
+    expect(res.body.status).toBe('open');
+    expect(res.body.details).toBe('x');
+    await request(app).get(`/api/requests/${id}`).expect(200);
+  });
+
+  it('sets Referrer-Policy strict-origin', async () => {
+    const { app } = setup();
+    const res = await request(app).get('/api/requests').expect(200);
+    expect(res.headers['referrer-policy']).toBe('strict-origin');
+  });
+
+  it('answers other client errors with their status and a Thai message', async () => {
+    const { app } = setup();
+    const res = await request(app)
+      .post('/api/requests')
+      .set('Content-Type', 'application/json')
+      .set('Content-Encoding', 'bogus')
+      .send('{}');
+    expect(res.status).toBe(415);
+    expect(res.body).toEqual({ error: 'ข้อมูลไม่ถูกต้อง' });
+  });
 });

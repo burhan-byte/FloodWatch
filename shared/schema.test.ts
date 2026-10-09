@@ -43,3 +43,12 @@ describe('claimSchema', () => {
     expect(claimSchema.parse({ name: ' ทีมเรือ ' })).toEqual({ name: 'ทีมเรือ' });
   });
 });
+
+describe('type errors', () => {
+  it('uses Thai messages for wrongly typed optional fields', () => {
+    const r = createRequestSchema.safeParse({ ...valid, hasElderly: 'yes', details: 5 });
+    expect(r.success).toBe(false);
+    const msgs = r.error!.issues.map((i) => i.message);
+    expect(msgs).toEqual(['ค่าไม่ถูกต้อง', 'ค่าไม่ถูกต้อง']);
+  });
+});

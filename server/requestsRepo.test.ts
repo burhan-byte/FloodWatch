@@ -139,6 +139,15 @@ describe('maintenance', () => {
     expect(getRow(db, fresh)!.status).toBe('claimed');
   });
 
+  it('does not reopen hidden stale claims', () => {
+    const t0 = new Date('2026-10-09T00:00:00Z');
+    const { id } = createRequest(db, input(), t0);
+    claimRequest(db, id, 'ทีม A', t0);
+    db.prepare('UPDATE help_requests SET hidden = 1 WHERE id = ?').run(id);
+    expect(releaseStaleClaims(db, new Date('2026-10-09T03:30:00Z'))).toEqual([]);
+    expect(getRow(db, id)!.status).toBe('claimed');
+  });
+
   it('removes phones of cases resolved more than 30 days ago', () => {
     const { id: old } = createRequest(db, input());
     const { id: recent } = createRequest(db, input());

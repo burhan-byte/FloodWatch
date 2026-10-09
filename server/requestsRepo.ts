@@ -194,7 +194,7 @@ export function addFlag(db: DB, id: string, ipHash: string, now = new Date()): {
 export function releaseStaleClaims(db: DB, now = new Date()): string[] {
   const cutoff = new Date(now.getTime() - STALE_CLAIM_MS).toISOString();
   const ids = (
-    db.prepare(`SELECT id FROM help_requests WHERE status = 'claimed' AND claimed_at < ?`).all(cutoff) as {
+    db.prepare(`SELECT id FROM help_requests WHERE status = 'claimed' AND hidden = 0 AND claimed_at < ?`).all(cutoff) as {
       id: string;
     }[]
   ).map((r) => r.id);

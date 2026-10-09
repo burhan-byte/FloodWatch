@@ -22,7 +22,7 @@ const lng = z
 
 // Fields shared by create and update; no defaults here so PATCH only touches sent keys
 const fields = {
-  locationText: z.string().trim().max(200, 'ที่อยู่ยาวเกิน 200 ตัวอักษร'),
+  locationText: z.string({ error: 'ค่าไม่ถูกต้อง' }).trim().max(200, 'ที่อยู่ยาวเกิน 200 ตัวอักษร'),
   needs: z
     .array(z.enum(NEEDS), { error: 'เลือกประเภทความช่วยเหลือ' })
     .min(1, 'เลือกประเภทความช่วยเหลืออย่างน้อย 1 อย่าง')
@@ -32,16 +32,16 @@ const fields = {
     .int('จำนวนคนต้องเป็นจำนวนเต็ม')
     .min(1, 'อย่างน้อย 1 คน')
     .max(500, 'ไม่เกิน 500 คน'),
-  hasElderly: z.boolean(),
-  hasChildren: z.boolean(),
-  hasBedridden: z.boolean(),
-  contactName: z.string().trim().max(100, 'ชื่อยาวเกิน 100 ตัวอักษร'),
+  hasElderly: z.boolean({ error: 'ค่าไม่ถูกต้อง' }),
+  hasChildren: z.boolean({ error: 'ค่าไม่ถูกต้อง' }),
+  hasBedridden: z.boolean({ error: 'ค่าไม่ถูกต้อง' }),
+  contactName: z.string({ error: 'ค่าไม่ถูกต้อง' }).trim().max(100, 'ชื่อยาวเกิน 100 ตัวอักษร'),
   phone: z
     .string({ error: 'กรุณาใส่เบอร์โทร' })
     .trim()
     .transform((s) => s.replace(/[\s-]/g, ''))
     .refine((s) => /^0\d{8,9}$/.test(s), 'เบอร์โทรไม่ถูกต้อง (ตัวอย่าง 081-234-5678)'),
-  details: z.string().trim().max(1000, 'รายละเอียดยาวเกิน 1000 ตัวอักษร'),
+  details: z.string({ error: 'ค่าไม่ถูกต้อง' }).trim().max(1000, 'รายละเอียดยาวเกิน 1000 ตัวอักษร'),
 };
 
 export const createRequestSchema = z.object({

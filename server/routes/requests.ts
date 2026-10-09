@@ -1,3 +1,4 @@
+import { ipKeyGenerator } from 'express-rate-limit';
 import { Router, type Request, type Response } from 'express';
 import type { z } from 'zod';
 import {
@@ -47,6 +48,7 @@ function parseBody<S extends z.ZodType>(schema: S, req: Request, res: Response):
 
 const notFound = (res: Response) => res.status(404).json({ error: 'ไม่พบเคสนี้' });
 const forbidden = (res: Response) => res.status(403).json({ error: 'ลิงก์ไม่ถูกต้องหรือไม่มีสิทธิ์' });
+const CLOSED = 'เคสนี้ปิดแล้ว';
 const conflict = (res: Response, error: string) => res.status(409).json({ error });
 
 export function requestsRouter({ db, stream, ipSalt, rateLimits }: RouterDeps): Router {
@@ -84,6 +86,7 @@ export function requestsRouter({ db, stream, ipSalt, rateLimits }: RouterDeps): 
     const row = getVisible(db, req.params.id);
     if (!row) return notFound(res);
     if (!isOwner(row, tokenOf(req))) return forbidden(res);
+    if (row.status === 'resolved') return conflict(res, CLOSED);
     const patch = parseBody(updateRequestSchema, req, res);
     if (!patch) return;
     updateRequest(db, row.id, patch);
@@ -94,10 +97,14 @@ export function requestsRouter({ db, stream, ipSalt, rateLimits }: RouterDeps): 
   router.post('/:id/phone', hourlyLimit(30, rateLimits), (req, res) => {
     const row = getVisible(db, req.params.id);
     if (!row) return notFound(res);
+    const token = tokenOf(req);
+    if (row.status === 'resolved' && !isOwner(row, token) && !isClaimer(row, token)) {
+      return conflict(res, CLOSED);
+    }
     res.json({ phone: row.phone });
   });
 
-  router.post('/:id/claim', (req, res) => {
+  router.post('/:id/claim', hourlyLimit(10, rateLimits), (req, res) => {
     const row = getVisible(db, req.params.id);
     if (!row) return notFound(res);
     const body = parseBody(claimSchema, req, res);
@@ -130,7 +137,7 @@ export function requestsRouter({ db, stream, ipSalt, rateLimits }: RouterDeps): 
   router.post('/:id/flag', hourlyLimit(20, rateLimits), (req, res) => {
     const row = getVisible(db, req.params.id);
     if (!row) return notFound(res);
-    const { newlyHidden } = addFlag(db, row.id, sha256(`${req.ip}|${ipSalt}`));
+    const { newlyHidden } = addFlag(db, row.id, sha256(`${ipKeyGenerator(req.ip ?? '', 56)}|${ipSalt}`));
     if (newlyHidden) stream.broadcast('request.removed', { id: row.id });
     res.status(204).end();
   });

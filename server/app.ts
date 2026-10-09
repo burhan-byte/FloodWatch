@@ -20,6 +20,10 @@ export function createApp({ db, stream, ipSalt, trustProxy, rateLimits = true, s
   app.disable('x-powered-by');
   if (trustProxy !== undefined) app.set('trust proxy', trustProxy);
 
+  app.use((_req, res, next) => {
+    res.setHeader('Referrer-Policy', 'strict-origin');
+    next();
+  });
   app.use(express.json({ limit: '10kb' }));
   app.get('/api/stream', stream.handler);
   app.use('/api/requests', requestsRouter({ db, stream, ipSalt, rateLimits }));
@@ -30,9 +34,12 @@ export function createApp({ db, stream, ipSalt, trustProxy, rateLimits = true, s
     app.get('*', (_req, res) => res.sendFile(path.join(staticDir, 'index.html')));
   }
 
-  app.use((err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error & { type?: string; status?: number }, _req: Request, res: Response, _next: NextFunction) => {
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'ข้อมูลไม่ถูกต้อง' });
     if (err.type === 'entity.too.large') return res.status(413).json({ error: 'ข้อมูลใหญ่เกินไป' });
+    if (typeof err.status === 'number' && err.status >= 400 && err.status < 500) {
+      return res.status(err.status).json({ error: 'ข้อมูลไม่ถูกต้อง' });
+    }
     console.error(err);
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่' });
   });
