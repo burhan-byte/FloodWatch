@@ -24,7 +24,7 @@ const lng = z
 const fields = {
   locationText: z.string({ error: 'ค่าไม่ถูกต้อง' }).trim().max(200, 'ที่อยู่ยาวเกิน 200 ตัวอักษร'),
   needs: z
-    .array(z.enum(NEEDS), { error: 'เลือกประเภทความช่วยเหลือ' })
+    .array(z.enum(NEEDS, { error: 'ประเภทความช่วยเหลือไม่ถูกต้อง' }), { error: 'เลือกประเภทความช่วยเหลือ' })
     .min(1, 'เลือกประเภทความช่วยเหลืออย่างน้อย 1 อย่าง')
     .transform((needs) => [...new Set(needs)]),
   peopleCount: z
@@ -56,9 +56,9 @@ export const createRequestSchema = z.object({
   hasBedridden: fields.hasBedridden.default(false),
   contactName: fields.contactName.default(''),
   details: fields.details.default(''),
-});
+}, { error: 'ข้อมูลไม่ถูกต้อง' });
 
-export const updateRequestSchema = z.object(fields).partial();
+export const updateRequestSchema = z.object(fields, { error: 'ข้อมูลไม่ถูกต้อง' }).partial();
 
 export const claimSchema = z.object({
   name: z
@@ -66,7 +66,7 @@ export const claimSchema = z.object({
     .trim()
     .min(1, 'กรุณาใส่ชื่อหรือชื่อทีม')
     .max(100, 'ชื่อยาวเกิน 100 ตัวอักษร'),
-});
+}, { error: 'ข้อมูลไม่ถูกต้อง' });
 
 export type CreateRequestInput = z.input<typeof createRequestSchema>;
 export type CreateRequest = z.output<typeof createRequestSchema>;

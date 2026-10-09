@@ -145,6 +145,18 @@ describe('help request API', () => {
       .expect(429);
   });
 
+  it('does not count failed creates against the hourly limit', async () => {
+    const { app } = setup(true);
+    const ip = '10.3.3.3';
+    for (let i = 0; i < 5; i++) {
+      await request(app).post('/api/requests').set('X-Forwarded-For', ip).send({}).expect(400);
+    }
+    for (let i = 0; i < 5; i++) {
+      await request(app).post('/api/requests').set('X-Forwarded-For', ip).send(valid).expect(201);
+    }
+    await request(app).post('/api/requests').set('X-Forwarded-For', ip).send(valid).expect(429);
+  });
+
   it('withholds the phone of resolved cases unless a valid token is sent', async () => {
     const { app } = setup();
     const { id, ownerToken } = await create(app);

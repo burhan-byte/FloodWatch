@@ -7,7 +7,12 @@ import { createStream } from './stream';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const DB_PATH = process.env.DB_PATH ?? './data/floodwatch.db';
-const TRUST_PROXY = process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : undefined;
+const TRUST_PROXY_RAW = process.env.TRUST_PROXY;
+if (TRUST_PROXY_RAW && !/^\d+$/.test(TRUST_PROXY_RAW)) {
+  console.error(`TRUST_PROXY must be a non-negative integer (number of proxy hops), got "${TRUST_PROXY_RAW}".`);
+  process.exit(1);
+}
+const TRUST_PROXY = TRUST_PROXY_RAW ? Number(TRUST_PROXY_RAW) : undefined;
 
 if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY) {
   console.warn(

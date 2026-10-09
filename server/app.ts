@@ -34,7 +34,8 @@ export function createApp({ db, stream, ipSalt, trustProxy, rateLimits = true, s
     app.get('*', (_req, res) => res.sendFile(path.join(staticDir, 'index.html')));
   }
 
-  app.use((err: Error & { type?: string; status?: number }, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error & { type?: string; status?: number }, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) return next(err);
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'ข้อมูลไม่ถูกต้อง' });
     if (err.type === 'entity.too.large') return res.status(413).json({ error: 'ข้อมูลใหญ่เกินไป' });
     if (typeof err.status === 'number' && err.status >= 400 && err.status < 500) {

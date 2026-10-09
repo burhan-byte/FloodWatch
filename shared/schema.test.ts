@@ -52,3 +52,19 @@ describe('type errors', () => {
     expect(msgs).toEqual(['ค่าไม่ถูกต้อง', 'ค่าไม่ถูกต้อง']);
   });
 });
+
+describe('top-level zod messages', () => {
+  it('uses Thai for an unknown need', () => {
+    const r = createRequestSchema.safeParse({ ...valid, needs: ['pizza'] });
+    expect(r.success).toBe(false);
+    expect(r.error!.issues[0].message).toBe('ประเภทความช่วยเหลือไม่ถูกต้อง');
+  });
+
+  it('uses Thai when the body is not an object', () => {
+    for (const schema of [createRequestSchema, updateRequestSchema, claimSchema]) {
+      const r = schema.safeParse([]);
+      expect(r.success).toBe(false);
+      expect(r.error!.issues[0].message).toBe('ข้อมูลไม่ถูกต้อง');
+    }
+  });
+});

@@ -74,7 +74,7 @@ export function requestsRouter({ db, stream, ipSalt, rateLimits }: RouterDeps): 
     res.json(toPublic(row));
   });
 
-  router.post('/', hourlyLimit(5, rateLimits), (req, res) => {
+  router.post('/', hourlyLimit(5, rateLimits, { skipFailedRequests: true }), (req, res) => {
     const input = parseBody(createRequestSchema, req, res);
     if (!input) return;
     const { id, ownerToken } = createRequest(db, input);

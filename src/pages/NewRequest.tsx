@@ -69,7 +69,9 @@ export default function NewRequest() {
   const [created, setCreated] = useState<{ id: string; ownerToken: string } | null>(null);
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setD((prev) => ({ ...prev, [key]: value }));
 
-  useEffect(() => window.scrollTo(0, 0), [created]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [created]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
